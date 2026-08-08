@@ -19,7 +19,7 @@ if "%WXLENS%"=="" if exist "C:\Program Files\WxLens\electron.exe" set WXLENS=C:\
 if "%WXLENS%"=="" (
     echo [ERROR] Wxlens not found!
     echo.
-    echo Please install Wxlens first: https://wxlens.com
+    echo Please install Wxlens first. See README for download link.
     echo Then run this setup again.
     echo.
     pause

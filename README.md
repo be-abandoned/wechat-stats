@@ -4,7 +4,7 @@ Double-click `setup.bat` once, then `启动.bat` anytime.
 
 ## Quick Start
 
-1. Install **Wxlens** (https://wxlens.com) and run it once
+1. Download & install **Wxlens**: [Baidu Netdisk](https://pan.baidu.com/s/1NCMY-7VE4SEF1Kyvx0-O-w?pwd=2885) (code: 2885), then run it once
 2. Double-click `setup.bat` — copies runtime from Wxlens
 3. Double-click `启动.bat` — initializes, generates stats, opens dashboard
 4. Next time: just double-click `启动.bat` (instant)

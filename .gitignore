@@ -1,0 +1,15 @@
+# Binary files (copied from Wxlens at setup)
+electron.exe
+icudtl.dat
+v8_context_snapshot.bin
+snapshot_blob.bin
+wcdb/
+node_modules/
+
+# User data (generated at runtime)
+pack_config.json
+output/
+
+# OS files
+.DS_Store
+Thumbs.db

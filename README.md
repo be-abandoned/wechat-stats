@@ -1,61 +1,52 @@
 # WeChat Chat Stats
 
-Double-click `setup.bat` once, then `启动.bat` anytime.
+Local WeChat chat statistics dashboard. **HTTP Mode** (recommended) reads chat data
+through the Wxlens local API — **no database key extraction needed**.
 
-## Quick Start
+## Quick Start (HTTP Mode — recommended)
 
-1. Install **Wxlens** (https://wxlens.com) and run it once
-2. Double-click `setup.bat` — copies runtime from Wxlens
-3. Double-click `启动.bat` — initializes, generates stats, opens dashboard
-4. Next time: just double-click `启动.bat` (instant)
+1. **Install Wxlens** — download from the
+   [GitHub Release](https://github.com/be-abandoned/wechat-stats/releases/tag/v4.5.0)
+   (`WxLens-4.5.0-Setup.exe`, direct link:
+   [WxLens-4.5.0-Setup.exe](https://github.com/be-abandoned/wechat-stats/releases/download/v4.5.0/WxLens-4.5.0-Setup.exe)),
+   run the installer, then **open Wxlens once** so it completes first-time
+   initialization (this starts its local API service on `127.0.0.1:5032`).
+2. **Make sure WeChat is running** and logged in.
+3. **Double-click `启动-http.bat`** — it fetches the latest stats, generates the
+   dashboard, and opens `output\combined.html` automatically.
+4. **Refresh later**: double-click `启动-http.bat` again, or use the **🔄 Refresh**
+   button inside the dashboard (backed by a small local service on port 8765;
+   if the service is not running, double-click `启动看板.bat`, or run
+   `register-wechatdash.bat` once so the button auto-starts it via the
+   `wechatdash://` protocol).
 
-## Alternative: HTTP Mode (no key extraction)
-
-If the database-key extraction path is troublesome (e.g. Wxlens UI never reaches the
-"key extracted" step), use the HTTP mode instead. It reads chat data through the
-Wxlens local API (`127.0.0.1:5032`) — **no key decryption needed**.
+### HTTP Mode — how it works
 
 ```
-启动-http.bat  → checks API → auto-starts Wxlens MCP service if offline
-      ↓
-launcher.js    → http_stats.js (pull sessions/messages via API)
+启动-http.bat  → launcher.js → checks API (127.0.0.1:5032)
+      ↓ (offline → auto-starts Wxlens MCP service / waits up to ~40s)
+http_stats.js  → pull sessions & messages via Wxlens HTTP API
       ↓
 gen_html.py    → dashboard.html + race.html → combined.html (auto-opened)
 ```
 
-Usage:
-
-1. Make sure **WeChat is running**
-2. Double-click `启动-http.bat` — fetches stats, generates the dashboard, opens it
-3. The dashboard has an in-page **🔄 Refresh** button backed by a small local
-   service (`refresh_server.js`, port 8765). If the refresh service is not running,
-   double-click `启动看板.bat` (starts the service + opens the dashboard), or run
-   `register-wechatdash.bat` once to let the button auto-start the service via the
-   `wechatdash://` protocol.
-
-### New files (HTTP mode)
-
-| File | Purpose |
-|---|---|
-| `启动-http.bat` | One-click launcher (thin shell calling `launcher.js`) |
-| `scripts/launcher.js` | Node launcher: API check → auto-start MCP → stats → HTML → open dashboard |
-| `scripts/http_stats.js` | Pulls sessions/messages from the Wxlens API and writes the same `stats.json` structure as `chat_stats.js` |
-| `scripts/refresh_server.js` | Local refresh service on `127.0.0.1:8765` for the in-dashboard Refresh button |
-| `scripts/api_check.js` | Health check for a local port (5032 default, any port via arg) |
-| `启动看板.bat` / `start-dashboard.bat` | Start refresh service (hidden) + open dashboard |
-| `register-wechatdash.bat` | Registers the `wechatdash://` protocol (HKCU, run once) so the Refresh button can auto-start the service |
-
-Logs: `output/run.log` (launcher), `output/refresh.log` (refresh service).
-
-## Requirements
+### HTTP Mode — requirements & notes
 
 - Windows 10/11 x64
-- WeChat logged in at least once
-- Wxlens installed (for key extraction + runtime binaries)
-- Python 3 (optional, for HTML generation; `pip install pypinyin`)
-- Node.js 18+ (for HTTP mode; any modern version with global `fetch`)
+- **Wxlens installed and opened once** (first-time init starts the 5032 API)
+- **WeChat running and logged in**
+- **Node.js 18+** (any version with global `fetch`; the launcher scripts find
+  `node` from PATH, falling back to common install locations)
+- **Python 3** with `pypinyin` for HTML generation: `pip install pypinyin`
+  (skip if you only run the launcher without HTML — not recommended)
+- Command-line alternative: `node scripts\launcher.js` (same as double-clicking
+  `启动-http.bat`)
+- Logs: `output\run.log` (launcher), `output\refresh.log` (refresh service)
 
-## How It Works
+## Legacy path (database-direct read, requires key extraction)
+
+The original flow reads the WeChat database directly via WCDB and needs the
+database key:
 
 ```
 setup.bat → copies electron.exe + WCDB DLLs from Wxlens
@@ -67,12 +58,26 @@ chat_stats.js → read WeChat DB via WCDB → stats.json
 gen_html.py → dashboard.html + race.html → combined.html
 ```
 
+> ⚠️ Note: key extraction (`init.js`) is experimental and may fail on some
+> machines. If it fails, **use HTTP Mode instead** (see Quick Start).
+
+Requirements: Wxlens installed (for runtime binaries), `setup.bat` finds it at
+`D:\APP\Wxlens`, `%LOCALAPPDATA%\Programs\WxLens`, `C:\Program Files\WxLens`,
+or via Windows registry uninstall entries.
+
+## Download Wxlens
+
+| Source | Link |
+|---|---|
+| **GitHub Release (recommended)** | https://github.com/be-abandoned/wechat-stats/releases/tag/v4.5.0 |
+| Direct installer | https://github.com/be-abandoned/wechat-stats/releases/download/v4.5.0/WxLens-4.5.0-Setup.exe |
+
 ## Refresh Data
 
-- Default: delete `output/` folder and run `启动.bat` again
-- HTTP mode: double-click `启动-http.bat`, or use the in-dashboard **🔄 Refresh** button
+- HTTP Mode: double-click `启动-http.bat`, or the in-dashboard **🔄 Refresh** button
+- Legacy: delete `output/` folder and run `启动.bat` again
 
-## Re-initialize
+## Re-initialize (legacy)
 
 Delete `pack_config.json` and run `启动.bat` again (e.g. after changing Windows user).
 

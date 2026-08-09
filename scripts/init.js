@@ -180,7 +180,8 @@ if (!result || !result.key) {
   console.log('[ERROR] 无法提取数据库密钥');
   console.log('请尝试以下任一方法：');
   console.log('  1. 启动微信并保持登录状态，然后重新运行本程序');
-  console.log('  2. Download & install Wxlens from Baidu Netdisk (see README), run it once, then retry');
+  console.log('  2. Download & install Wxlens from GitHub Release (see README), run it once, then retry');
+  console.log('  3. 使用 HTTP 模式（免密钥）：双击「启动-http.bat」，见 README "Alternative: HTTP Mode"');
   process.exit(1);
 }
 

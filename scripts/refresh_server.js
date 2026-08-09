@@ -41,10 +41,26 @@ function loadTotals() {
       const p = path.join(STATS_DIR, dir, 'stats.json');
       if (!fs.existsSync(p)) continue;
       const d = JSON.parse(fs.readFileSync(p, 'utf8'));
-      totals[d.username || dir] = { name: d.display || dir, total: d.total || 0 };
+      totals[d.username || dir] = { name: d.display || dir, total: d.total || 0, firstTs: d.firstTs || null };
     }
   } catch {}
   return totals;
+}
+
+// 首次刷新的 since 基准：取所有会话 stats.json 中最早的 firstTs
+function firstBaseTime() {
+  let min = Infinity;
+  try {
+    if (!fs.existsSync(STATS_DIR)) return null;
+    for (const dir of fs.readdirSync(STATS_DIR)) {
+      const p = path.join(STATS_DIR, dir, 'stats.json');
+      if (!fs.existsSync(p)) continue;
+      const d = JSON.parse(fs.readFileSync(p, 'utf8'));
+      if (d.firstTs && d.firstTs < min) min = d.firstTs;
+    }
+  } catch {}
+  if (min === Infinity || !isFinite(min)) return null;
+  return new Date(min).toLocaleString('zh-CN', { hour12: false });
 }
 
 function run(cmd, args) {
@@ -89,7 +105,7 @@ async function doRefresh() {
       if (delta > 0) sessions.push({ name: v.name, delta });
     }
     sessions.sort((a, b) => b.delta - a.delta);
-    state.since = state.until || null;
+    state.since = state.until || firstBaseTime() || null;
     state.until = new Date().toLocaleString('zh-CN', { hour12: false });
     state.sessions = sessions;
     state.pct = 100; state.step = '完成'; saveState();

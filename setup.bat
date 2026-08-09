@@ -16,6 +16,26 @@ if exist "D:\APP\Wxlens\electron.exe" set WXLENS=D:\APP\Wxlens
 if "%WXLENS%"=="" if exist "%LOCALAPPDATA%\Programs\WxLens\electron.exe" set WXLENS=%LOCALAPPDATA%\Programs\WxLens
 if "%WXLENS%"=="" if exist "C:\Program Files\WxLens\electron.exe" set WXLENS=C:\Program Files\WxLens
 
+:: Registry probe (Uninstall entries: HKLM / HKCU / WOW6432Node)
+if "%WXLENS%"=="" (
+    for %%R in (
+        "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
+        "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+        "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
+    ) do (
+        for /f "tokens=2,* delims==" %%A in ('reg query "%%~R" /s /f "WxLens" /d 2^>nul ^| findstr /i "InstallLocation"') do (
+            if exist "%%B\electron.exe" set "WXLENS=%%B"
+        )
+    )
+)
+
+:: Fallback: scan %LOCALAPPDATA%\Programs for a WxLens folder
+if "%WXLENS%"=="" (
+    for /d %%D in ("%LOCALAPPDATA%\Programs\*") do (
+        if /i "%%~nxD"=="WxLens" if exist "%%~D\electron.exe" set "WXLENS=%%~D"
+    )
+)
+
 if "%WXLENS%"=="" (
     echo [ERROR] Wxlens not found!
     echo.
@@ -70,7 +90,7 @@ echo [OK] koffi
 echo.
 echo ========================================
 echo   Setup complete!
-echo   You can now run: 启动.bat
+echo   You can now run the launcher (see README Quick Start).
 echo ========================================
 echo.
 pause

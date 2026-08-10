@@ -12,7 +12,23 @@ const PORT = 8765;
 const PACK = path.resolve(__dirname, '..');
 const SCRIPTS = __dirname;
 const NODE = process.execPath;
-const PYTHON = process.env.PYTHON || 'python';  // override via env if pypinyin lives in a venv
+// 自动检测 Python：优先项目内虚拟环境（.venv / venv），其次系统 python（gen_html.py 需要 pypinyin）
+function findPython() {
+  if (process.env.PYTHON) return process.env.PYTHON;
+  const candidates = [
+    path.join(PACK, '.venv', 'Scripts', 'python.exe'),
+    path.join(PACK, 'venv', 'Scripts', 'python.exe'),
+    path.join(PACK, '.venv', 'bin', 'python'),
+    path.join(PACK, 'venv', 'bin', 'python'),
+    'python',
+  ];
+  for (const c of candidates) {
+    if (c === 'python') return c;
+    try { if (fs.existsSync(c)) return c; } catch {}
+  }
+  return 'python';
+}
+const PYTHON = findPython();
 const STATS_DIR = path.join(PACK, 'output', 'stats_data');
 const STATE_FILE = path.join(PACK, 'output', 'refresh_state.json');
 const LOG_FILE = path.join(PACK, 'output', 'refresh.log');

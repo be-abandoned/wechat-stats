@@ -1,6 +1,20 @@
 # 微信聊天统计
 
-本地微信聊天数据统计看板。**HTTP 模式**（推荐）通过 Wxlens 本地 API 读取聊天数据 — **无需提取数据库密钥**。
+本地微信聊天数据统计看板。**HTTP 模式**（推荐）通过 Wxlens 本地 API 读取聊天数据 — **无需提取数据库密钥**。支持**朋友圈文案+点赞**读取。
+
+## 朋友圈（文案 + 点赞）
+
+```bash
+# 运行环境: 微信运行中 + Wxlens 已安装（提供 koffi 运行时）
+node scripts\sns_timeline.js                 # 最新 20 条
+node scripts\sns_timeline.js --limit 50      # 最新 50 条
+node scripts\sns_timeline.js --keyword 番茄   # 关键词过滤（如搜自己发的动态）
+node scripts\sns_timeline.js --username wxid_xxx
+node scripts\sns_timeline.js --raw           # 输出原始 JSON
+```
+
+输出格式：每条动态显示 作者 / 时间 / 文案 / 点赞名单（昵称），`--all` 额外显示评论。
+技术原理：通过 WCDB 的 `wcdb_get_sns_timeline` API 直读 `db_storage\sns\sns.db` 的 `SnsTimeLine` 表。
 
 ## 快速开始（HTTP 模式 — 推荐）
 

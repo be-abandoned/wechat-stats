@@ -9,9 +9,27 @@ const SCRIPTS = __dirname;
 const API = process.env.WX_API || 'http://127.0.0.1:5032';
 const LOG = path.join(PACK, 'output', 'run.log');
 const NODE = process.execPath;
-const PYTHON = process.env.PYTHON || 'python';  // override via env if pypinyin lives in a venv
 const MCP_START = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'WxLens', 'resources', 'wxlens-mcp', 'start.cmd');
 const HTML = path.join(PACK, 'output', 'combined.html');
+
+// 自动检测 Python：优先项目内虚拟环境（.venv / venv），其次系统 python。
+// gen_html.py 需要 pypinyin；若放在 venv 中，用 PYTHON 环境变量或项目内 .venv 均可。
+function findPython() {
+  if (process.env.PYTHON) return process.env.PYTHON;
+  const candidates = [
+    path.join(PACK, '.venv', 'Scripts', 'python.exe'), // Windows venv
+    path.join(PACK, 'venv', 'Scripts', 'python.exe'),
+    path.join(PACK, '.venv', 'bin', 'python'),         // Unix venv
+    path.join(PACK, 'venv', 'bin', 'python'),
+    'python',
+  ];
+  for (const c of candidates) {
+    if (c === 'python') return c;
+    try { if (fs.existsSync(c)) return c; } catch {}
+  }
+  return 'python';
+}
+const PYTHON = findPython();
 
 function log(s) {
   const line = `[${new Date().toLocaleString('zh-CN', { hour12: false })}] ${s}`;
@@ -77,10 +95,15 @@ async function main() {
   log('[OK] Stats done');
 
   // 4. generate HTML
-  log('[2/2] Generating HTML dashboard...');
+  log('[2/2] Generating HTML dashboard... (python=' + PYTHON + ')');
   r = await run(PYTHON, [path.join(SCRIPTS, 'gen_html.py')]);
   if (r.out) log(r.out.trim());
-  if (r.code !== 0) { log('[ERROR] HTML generation failed (exit=' + r.code + ')'); process.exit(1); }
+  if (r.code !== 0) {
+    log('[ERROR] HTML generation failed (exit=' + r.code + ')');
+    log('  gen_html.py needs the pypinyin package. Install it:  pip install pypinyin');
+    log('  (or set PYTHON=/path/to/venv/python and run again)');
+    process.exit(1);
+  }
   log('[OK] HTML done');
 
   // 5. open dashboard

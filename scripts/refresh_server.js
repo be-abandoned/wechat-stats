@@ -89,6 +89,17 @@ function run(cmd, args) {
   });
 }
 
+// 生成 HTML；若因缺 pypinyin 失败，自动 pip install 后重试一次
+async function runGenHtml() {
+  let r = await run(PYTHON, [path.join(SCRIPTS, 'gen_html.py')]);
+  if (r.code === 0) return r;
+  log('gen_html failed (exit=' + r.code + '), auto-installing pypinyin...');
+  const inst = await run(PYTHON, ['-m', 'pip', 'install', '--user', 'pypinyin', '-q']);
+  if (inst.out) log(inst.out.trim());
+  if (inst.code !== 0) log('pip install pypinyin failed (exit=' + inst.code + ')');
+  return run(PYTHON, [path.join(SCRIPTS, 'gen_html.py')]);
+}
+
 async function doRefresh() {
   if (state.running) return;
   state.running = true;
@@ -104,7 +115,7 @@ async function doRefresh() {
     }
     log('http_stats ok');
     state.pct = 55; state.step = '正在生成仪表盘…'; saveState();
-    r = await run(PYTHON, [path.join(SCRIPTS, 'gen_html.py')]);
+    r = await runGenHtml();
     if (r.code !== 0) {
       log('gen_html failed exit=' + r.code + ' out=' + (r.out || '').slice(0, 500));
       state.pct = 100; state.step = '失败：仪表盘生成出错'; saveState();

@@ -57,6 +57,17 @@ function run(cmd, args) {
   });
 }
 
+// 生成 HTML；若因缺 pypinyin 失败，自动 pip install 后重试一次
+async function runGenHtml() {
+  let r = await run(PYTHON, [path.join(SCRIPTS, 'gen_html.py')]);
+  if (r.code === 0) return r;
+  log('[WARN] HTML generation failed (exit=' + r.code + '), auto-installing pypinyin...');
+  const inst = await run(PYTHON, ['-m', 'pip', 'install', '--user', 'pypinyin', '-q']);
+  if (inst.out) log(inst.out.trim());
+  if (inst.code !== 0) log('[WARN] pip install pypinyin failed (exit=' + inst.code + ')');
+  return run(PYTHON, [path.join(SCRIPTS, 'gen_html.py')]);
+}
+
 function openDetached(target) {
   spawn('cmd', ['/c', 'start', '""', target], { detached: true, stdio: 'ignore' }).unref();
 }
@@ -94,9 +105,9 @@ async function main() {
   if (r.code !== 0) { log('[ERROR] Stats generation failed (exit=' + r.code + ')'); process.exit(1); }
   log('[OK] Stats done');
 
-  // 4. generate HTML
+  // 4. generate HTML (auto-installs pypinyin on first run if missing)
   log('[2/2] Generating HTML dashboard... (python=' + PYTHON + ')');
-  r = await run(PYTHON, [path.join(SCRIPTS, 'gen_html.py')]);
+  r = await runGenHtml();
   if (r.out) log(r.out.trim());
   if (r.code !== 0) {
     log('[ERROR] HTML generation failed (exit=' + r.code + ')');

@@ -48,7 +48,8 @@ scripts/gen_html.py     → 调用三个生成器（看板 / 排行 / 合并）
 output/combined.html    → 浏览器打开；🔄 按钮由 scripts/refresh_server.js 支撑
 ```
 
-启动入口：Windows 双击 `启动.bat`，或任意平台 `node scripts/launcher.js`。
+启动入口：Windows 双击 `start.bat`（`启动.bat` 额外注册 `wechatdash://` 协议，供看板刷新按钮使用），
+或任意平台 `node scripts/launcher.js`。
 
 ## 数据源契约
 
@@ -83,7 +84,8 @@ output/combined.html    → 浏览器打开；🔄 按钮由 scripts/refresh_ser
 
 | 文件 | 用途 |
 |---|---|
-| `启动.bat` | Windows 一键入口：检查 Node → 启动器 → 打开看板 |
+| `start.bat` | Windows 入口（ASCII 文件名）：检查 Node → 启动器 |
+| `启动.bat` | 同上，并注册 `wechatdash://` 协议（看板刷新按钮使用） |
 | `scripts/launcher.js` | 流水线编排（检查数据源 → 统计 → 生成 → 打开 → 保活刷新服务） |
 | `scripts/http_stats.js` | 从数据源拉取并计算统计，产物 `output/stats_data/*/stats.json` |
 | `scripts/gen_html.py` | 把生成器适配到输出目录并依次运行 |

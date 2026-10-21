@@ -53,7 +53,8 @@ scripts/gen_html.py     -> runs the three generators (dashboard / race / combine
 output/combined.html    -> opened in your browser; the refresh button uses scripts/refresh_server.js
 ```
 
-Entry point: double-click `启动.bat` on Windows, or run `node scripts/launcher.js` anywhere
+Entry point: double-click `start.bat` on Windows (`启动.bat` does the same and additionally registers
+the `wechatdash://` protocol used by the refresh button), or run `node scripts/launcher.js` anywhere
 (Node 18+).
 
 ## Provider contract
@@ -91,7 +92,8 @@ Reference implementation: [`tools/mock-provider.js`](tools/mock-provider.js) (ze
 
 | Path | Purpose |
 |---|---|
-| `启动.bat` | Windows one-click entry: Node check -> launcher -> open dashboard |
+| `start.bat` | Windows entry point (ASCII name): Node check -> launcher |
+| `启动.bat` | Same, plus registration of the `wechatdash://` protocol used by the refresh button |
 | `scripts/launcher.js` | Pipeline orchestration (probe provider -> stats -> HTML -> open -> keep refresh service alive) |
 | `scripts/http_stats.js` | Pulls from the provider and computes stats into `output/stats_data/*/stats.json` |
 | `scripts/gen_html.py` | Adapts the generators to the output directory and runs them in order |

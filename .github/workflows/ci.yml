@@ -25,7 +25,7 @@ jobs:
           $files = Get-ChildItem -Recurse -Filter *.js | Where-Object { $_.FullName -notmatch 'node_modules' }
           foreach ($f in $files) {
             node --check $f.FullName
-            if ($LASTEXITCODE -ne 0) { throw "syntax error: $($f.FullName)" }
+            if ($LASTEXITCODE -ne 0) { Write-Host "::error file=$($f.FullName),line=1::syntax error"; exit 1 }
           }
           "checked $($files.Count) files"
 
@@ -33,7 +33,7 @@ jobs:
         shell: pwsh
         run: |
           python -m py_compile scripts/gen_html.py scripts/gen_dashboard_html.py scripts/gen_race_html.py scripts/gen_combined.py
-          if ($LASTEXITCODE -ne 0) { throw "python syntax error" }
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::python syntax error"; exit 1 }
 
       - name: Install pypinyin
         run: python -m pip install --disable-pip-version-check pypinyin
@@ -41,17 +41,47 @@ jobs:
       - name: Run the pipeline against the synthetic provider
         shell: pwsh
         run: |
-          $p = Start-Process -FilePath node -ArgumentList "tools/mock-provider.js" -PassThru -WindowStyle Hidden
+          # Anything that goes wrong is surfaced as a GitHub annotation, so the failure is
+          # readable without downloading the job log.
+          function Fail([string]$msg) {
+            $msg = ($msg -replace "`r?`n", " | ")
+            if ($msg.Length -gt 3000) { $msg = $msg.Substring($msg.Length - 3000) }
+            Write-Host "::error::$msg"
+            exit 1
+          }
+
+          $providerLog = Join-Path $env:RUNNER_TEMP 'provider.log'
+          $p = Start-Process -FilePath node -ArgumentList "tools/mock-provider.js" -PassThru -WindowStyle Hidden `
+                 -RedirectStandardOutput $providerLog -RedirectStandardError "$providerLog.err"
+
           try {
-            Start-Sleep -Seconds 2
-            node scripts/http_stats.js
-            if ($LASTEXITCODE -ne 0) { throw "http_stats.js failed" }
-            python scripts/gen_html.py
-            if ($LASTEXITCODE -ne 0) { throw "gen_html.py failed" }
+            $ready = $false
+            for ($i = 0; $i -lt 30; $i++) {
+              Start-Sleep -Milliseconds 500
+              try {
+                $r = Invoke-WebRequest -Uri 'http://127.0.0.1:5032/api/sessions?limit=1' -TimeoutSec 2 -UseBasicParsing
+                if ($r.StatusCode -eq 200) { $ready = $true; break }
+              } catch { }
+            }
+            if (-not $ready) {
+              $err = (Get-Content $providerLog -Raw -ErrorAction SilentlyContinue) + (Get-Content "$providerLog.err" -Raw -ErrorAction SilentlyContinue)
+              Fail "mock provider never answered: $err"
+            }
+
+            node scripts/http_stats.js *> stats.log
+            if ($LASTEXITCODE -ne 0) {
+              Fail ("http_stats.js failed: " + (Get-Content stats.log -Raw -ErrorAction SilentlyContinue))
+            }
+
+            python scripts/gen_html.py *> gen.log
+            if ($LASTEXITCODE -ne 0) {
+              Fail ("gen_html.py failed: " + (Get-Content gen.log -Raw -ErrorAction SilentlyContinue))
+            }
           } finally {
             Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
           }
-          if (-not (Test-Path output/combined.html)) { throw "output/combined.html was not produced" }
+
+          if (-not (Test-Path output/combined.html)) { Fail "output/combined.html was not produced" }
           $size = (Get-Item output/combined.html).Length
           "dashboard size: $size bytes"
-          if ($size -lt 50000) { throw "dashboard is suspiciously small ($size bytes)" }
+          if ($size -lt 50000) { Fail "dashboard is suspiciously small ($size bytes)" }

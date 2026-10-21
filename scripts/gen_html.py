@@ -66,6 +66,7 @@ for i, (script, label) in enumerate([
         encoding='utf-8', errors='replace',
         env={**os.environ,
              'WECHAT_STATS_BASE': STATS_DIR,
+             'PYTHONIOENCODING': 'utf-8',
              'OUTPUT_DIR': OUTPUT_DIR,
              'DASH_TMP': os.path.join(OUTPUT_DIR, 'dashboard.html'),
              'DASH_SRC': os.path.join(OUTPUT_DIR, 'dashboard.html'),

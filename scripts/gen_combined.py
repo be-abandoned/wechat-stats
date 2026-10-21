@@ -2,7 +2,15 @@
 """合并「数据看板.html」+「聊天频率排行.html」→「微信统计中心.html」（顶部页签切换两大功能页）。
 后处理方式：读取两个生成器产出的 HTML，提取 CSS/body/JS，作用域化后拼装。
 不改动原两个 HTML 与生成器。"""
-import re, os
+import re, os, sys
+
+# Console output is Chinese; force UTF-8 so a non-UTF-8 locale (e.g. cp1252 on CI runners)
+# cannot turn a successful build into a crash.
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 
 BASE = os.environ.get('OUTPUT_DIR') or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'output')
 DASH = os.environ.get('DASH_SRC') or os.path.join(BASE, 'dashboard.html')

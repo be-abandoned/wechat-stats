@@ -7,15 +7,14 @@ try:
 except Exception:
     pass
 
-# 数据根目录：优先取环境变量，便于在其他机器上运行
-BASE = os.environ.get('WECHAT_STATS_BASE') or r'D:\WorkBuddy\微信聊天记录库-私聊'
+# 数据根目录：默认项目内 output/stats_data，可用 WECHAT_STATS_BASE 覆盖
+_HERE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.environ.get('WECHAT_STATS_BASE') or os.path.join(_HERE, '..', 'output', 'stats_data')
+BASE = os.path.abspath(BASE)
 OUT = os.environ.get('DASH_TMP') or os.path.join(BASE, '数据看板.html')   # 支持临时输出（合并流程用）
 
-# 联系人昵称映射：可选文件，缺失时直接显示 wxid
-WXID_NAMES_PATH = os.environ.get('WECHAT_STATS_NAMES') or r'D:\WorkBuddy\.workbuddy\wxid_names.json'
-_LOCAL_NAMES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wxid_names.json')
-if not os.path.exists(WXID_NAMES_PATH) and os.path.exists(_LOCAL_NAMES):
-    WXID_NAMES_PATH = _LOCAL_NAMES
+# 联系人昵称映射：可选文件（与脚本同目录），缺失时直接显示 wxid
+WXID_NAMES_PATH = os.environ.get('WECHAT_STATS_NAMES') or os.path.join(_HERE, 'wxid_names.json')
 
 try:
     WXID_NAMES = json.load(open(WXID_NAMES_PATH, encoding='utf-8'))['names']

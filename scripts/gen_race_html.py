@@ -8,8 +8,10 @@ try:
 except Exception:
     pass
 
-# 数据根目录：优先取环境变量，便于在其他机器上运行
-BASE = os.environ.get('WECHAT_STATS_BASE') or r'D:\WorkBuddy\微信聊天记录库-私聊'
+# 数据根目录：默认项目内 output/stats_data，可用 WECHAT_STATS_BASE 覆盖
+BASE = os.path.abspath(
+    os.environ.get('WECHAT_STATS_BASE')
+    or os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'output', 'stats_data'))
 OUT = os.environ.get('RACE_TMP') or os.path.join(BASE, '聊天频率排行.html')   # 支持临时输出（合并流程用）
 
 def sanitize(n):

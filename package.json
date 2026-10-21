@@ -1,0 +1,16 @@
+{
+  "name": "wechat-stats",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local-first dashboard for your own chat statistics: message counts, activity ranking, hour and week patterns.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node scripts/launcher.js",
+    "mock": "node tools/mock-provider.js",
+    "stats": "node scripts/http_stats.js",
+    "check": "node scripts/api_check.js"
+  }
+}

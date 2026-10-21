@@ -25,21 +25,14 @@ if os.path.exists(WXID_NAMES_SRC):
     shutil.copy(WXID_NAMES_SRC, wxid_names_dst)
 
 # Build adapted scripts
+# The generators resolve their data root from WECHAT_STATS_BASE (default: <pack>/output/stats_data)
+# and their optional name map from the script's own directory, so only the output paths below
+# need rewriting for the merged build.
 for script in ['gen_dashboard_html.py', 'gen_race_html.py', 'gen_combined.py']:
     src = os.path.join(GEN_SRC, script)
     dst = os.path.join(TMP_GEN, script)
     content = open(src, encoding='utf-8').read()
 
-    # Replace BASE = r'...'
-    content = content.replace(
-        "r'D:\\WorkBuddy\\微信聊天记录库-私聊'",
-        "r'" + STATS_DIR + "'"
-    )
-    # Replace wxid_names path
-    content = content.replace(
-        "r'D:\\WorkBuddy\\.workbuddy\\wxid_names.json'",
-        "r'" + wxid_names_dst + "'"
-    )
     # Replace all os.path.join(BASE, ...) with English output paths
     content = content.replace(
         "os.path.join(BASE, '数据看板.html')",
@@ -70,7 +63,9 @@ for i, (script, label) in enumerate([
         [python, os.path.join(TMP_GEN, script)],
         cwd=TMP_GEN,
         capture_output=True, text=True,
+        encoding='utf-8', errors='replace',
         env={**os.environ,
+             'WECHAT_STATS_BASE': STATS_DIR,
              'OUTPUT_DIR': OUTPUT_DIR,
              'DASH_TMP': os.path.join(OUTPUT_DIR, 'dashboard.html'),
              'DASH_SRC': os.path.join(OUTPUT_DIR, 'dashboard.html'),

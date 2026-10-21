@@ -1,21 +1,16 @@
-# Binary files (copied from Wxlens at setup)
-electron.exe
-icudtl.dat
-v8_context_snapshot.bin
-snapshot_blob.bin
-wcdb/
+# Dependencies
 node_modules/
 
-# User data (generated at runtime)
-pack_config.json
+# Runtime output (generated dashboards, logs, per-chat stats)
 output/
 
 # Personal data — must never be committed
 scripts/wxid_names.json
 wxid_names.json
 *.local.json
+pack_config.json
 
-# Generated artefacts / samples that may contain real data
+# Generated artefacts that could embed real data
 static/
 *.stats.json
 
@@ -24,6 +19,9 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Temporary pip leftovers (when pip is run from the repo root)
+pip-*
 
 # OS files
 .DS_Store

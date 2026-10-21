@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pipeline:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Node syntax check
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Recurse -Filter *.js | Where-Object { $_.FullName -notmatch 'node_modules' }
+          foreach ($f in $files) {
+            node --check $f.FullName
+            if ($LASTEXITCODE -ne 0) { throw "syntax error: $($f.FullName)" }
+          }
+          "checked $($files.Count) files"
+
+      - name: Python syntax check
+        shell: pwsh
+        run: |
+          python -m py_compile scripts/gen_html.py scripts/gen_dashboard_html.py scripts/gen_race_html.py scripts/gen_combined.py
+          if ($LASTEXITCODE -ne 0) { throw "python syntax error" }
+
+      - name: Install pypinyin
+        run: python -m pip install --disable-pip-version-check pypinyin
+
+      - name: Run the pipeline against the synthetic provider
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath node -ArgumentList "tools/mock-provider.js" -PassThru -WindowStyle Hidden
+          try {
+            Start-Sleep -Seconds 2
+            node scripts/http_stats.js
+            if ($LASTEXITCODE -ne 0) { throw "http_stats.js failed" }
+            python scripts/gen_html.py
+            if ($LASTEXITCODE -ne 0) { throw "gen_html.py failed" }
+          } finally {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          }
+          if (-not (Test-Path output/combined.html)) { throw "output/combined.html was not produced" }
+          $size = (Get-Item output/combined.html).Length
+          "dashboard size: $size bytes"
+          if ($size -lt 50000) { throw "dashboard is suspiciously small ($size bytes)" }

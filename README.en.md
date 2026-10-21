@@ -1,144 +1,121 @@
 # WeChat Stats
 
+[![CI](https://github.com/be-abandoned/wechat-stats/actions/workflows/ci.yml/badge.svg)](https://github.com/be-abandoned/wechat-stats/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
 [![Python](https://img.shields.io/badge/python-3.x-yellow)](https://www.python.org)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-lightgrey)](#requirements)
 
-A **local-first statistics dashboard for your own WeChat chat data**. All processing happens on
-your machine, and the tool never talks to an external server. Messages are read through the local
-HTTP API of [Wxlens](https://github.com/be-abandoned/wechat-stats/releases/tag/v4.5.0), so no
-database key extraction is required.
+A **local-first statistics dashboard for chat conversations**. It turns a chat export into an
+interactive HTML dashboard: message counts, activity ranking, hour-of-day and time-of-day patterns,
+reply latency, and a bar-chart-race animation of your most active conversations.
+
+Everything runs on your machine. The project **never reads an encrypted database and never
+decrypts a key** — it consumes plain JSON from a local HTTP provider that you run yourself, on
+`127.0.0.1`. No network calls, no uploads, no telemetry.
 
 中文文档：[README.md](README.md)
 
 ---
 
-## Features
+## Try it in 30 seconds (no real data needed)
 
-- **Private and group chat statistics** — message counts, hour-of-day and time-of-day distribution,
-  activity ranking, rendered as a self-contained interactive HTML dashboard
-  (`output/combined.html`).
-- **Moments reader** (`scripts/sns_timeline.js`) — latest posts with their text and the list of
-  people who liked them; filter by count, keyword or wxid.
-- **One-click start** — `启动.bat` runs the whole pipeline: check Node → pull stats → build the
-  dashboard → open it in the browser.
-- **Refresh from inside the dashboard** — the 🔄 button talks to a local service on
-  `127.0.0.1:8765`, so you can re-pull data without restarting anything.
-- **Fully offline** — apart from the local Wxlens API, nothing is contacted. The source is plain,
-  readable scripts you can audit yourself.
-
-## Moments (post text + likes)
+The repository ships a **synthetic** data provider, so the full pipeline runs on a fresh clone:
 
 ```bash
-# Requires: WeChat running, Wxlens installed (ships the koffi runtime)
-node scripts\sns_timeline.js                 # latest 20 posts
-node scripts\sns_timeline.js --limit 50      # latest 50 posts
-node scripts\sns_timeline.js --keyword travel # keyword filter
-node scripts\sns_timeline.js --username wxid_xxx
-node scripts\sns_timeline.js --raw           # raw JSON output
+node tools/mock-provider.js      # terminal A: synthetic provider on 127.0.0.1:5032
+npm start                        # terminal B: stats -> dashboard -> opens output/combined.html
 ```
 
-Each post shows author / timestamp / text / likers (display names); `--all` also includes comments.
-Implementation: reads the `SnsTimeLine` table in `db_storage\sns\sns.db` through WCDB's
-`wcdb_get_sns_timeline` API.
+The demo data is randomly generated: 8 conversations, ~15k messages, ids like `wxid_demo_*`. It
+contains no real content and is regenerated deterministically on every start.
 
-## Quick start (HTTP mode — recommended)
+## What you get
 
-1. **Install Wxlens** — download `WxLens-4.5.0-Setup.exe` from the
-   [GitHub release](https://github.com/be-abandoned/wechat-stats/releases/tag/v4.5.0)
-   ([direct link](https://github.com/be-abandoned/wechat-stats/releases/download/v4.5.0/WxLens-4.5.0-Setup.exe)).
-   Open it once so it initialises and starts its local API on `127.0.0.1:5032`.
-2. **Make sure WeChat is running** and logged in.
-3. **Double-click `启动.bat`** — it pulls the latest statistics, builds the dashboard and opens
-   `output\combined.html`. The first run also registers the `wechatdash://` protocol.
-4. **Refresh** — run `启动.bat` again, or press the **🔄** button in the dashboard (served by the
-   local service on port 8765; the launcher keeps it alive and the `wechatdash://` handler starts it
-   on demand).
+- **Per-conversation stats** — total messages, sent/received split, active days, best streak, average
+  messages per active day, average and maximum text length.
+- **Time patterns** — 24-hour histogram, day-part split (night / morning / afternoon / evening),
+  month-by-month trend.
+- **Reply behaviour** — median and mean reply gap in both directions, share of replies within an hour.
+- **Activity ranking** — a bar-chart-race animation over the last 30 days per frame.
+- **One interactive page** — a single self-contained `output/combined.html` that works offline, with
+  a 🔄 refresh button backed by a local service on `127.0.0.1:8765`.
 
-### How the HTTP pipeline works
+## Architecture
 
 ```
-启动.bat  -> launcher.js -> probe API (127.0.0.1:5032)
-      |  (if offline, auto-start the Wxlens MCP service, wait up to ~40s)
-http_stats.js  -> pull conversations and messages through the Wxlens HTTP API
-      |
-gen_html.py    -> dashboard.html + race.html -> combined.html (opened automatically)
+your local provider (implements the two endpoints in docs/provider-api.md)
+        |  GET /api/sessions, GET /api/messages  (loopback only)
+        v
+scripts/http_stats.js   -> computes stats into output/stats_data/<chat>/stats.json
+        v
+scripts/gen_html.py     -> runs the three generators (dashboard / race / combined)
+        v
+output/combined.html    -> opened in your browser; the refresh button uses scripts/refresh_server.js
 ```
 
-### Requirements
+Entry point: double-click `启动.bat` on Windows, or run `node scripts/launcher.js` anywhere
+(Node 18+).
 
-- **Windows 10/11 x64**
-- **Wxlens installed and initialised** (first launch starts the API on port 5032)
-- **WeChat running and logged in**
-- **Node.js 18+** (any version with global `fetch`; the launcher looks on `PATH` first, then common
-  install locations)
-- **Python 3** + `pypinyin` for HTML generation. The launcher prefers a project-local virtualenv
-  (`.venv` / `venv`) and falls back to `python` on `PATH`. Install with `pip install pypinyin`.
-- CLI alternative: `node scripts\launcher.js` (equivalent to double-clicking `启动.bat`)
-- Logs: `output\run.log` (launcher), `output\refresh.log` (refresh service)
+## Provider contract
 
-### Optional: contact name mapping
+Two endpoints, JSON, any language:
 
-`scripts/wxid_names.json` is **not** part of the repository, because it contains real contact data.
-Create it yourself if you want readable names:
-
-```json
-{ "names": { "wxid_example": "Display name" } }
-```
-
-Without the file the dashboard simply shows raw wxids; statistics are unaffected.
-
-### File overview
-
-| File | Purpose |
+| Endpoint | Purpose |
 |---|---|
-| `启动.bat` | Main entry point — Node check → protocol registration → stats → HTML → open dashboard |
-| `start-dashboard.bat` | Internal: starts the refresh service and handles the `wechatdash://` protocol |
-| `scripts/launcher.js` | Node launcher (HTTP mode pipeline) |
-| `scripts/http_stats.js` | Pulls conversations/messages from the Wxlens API into `stats.json` |
+| `GET /api/sessions?limit=N` | List conversations (id, display name, last message time) |
+| `GET /api/messages?session_id=X&limit=N&offset=M` | Paginated messages (timestamp, direction, type, content) |
+
+Field-by-field details, message type codes and examples: [`docs/provider-api.md`](docs/provider-api.md).
+Reference implementation: [`tools/mock-provider.js`](tools/mock-provider.js) (zero dependencies).
+
+> **Why is there no bundled reader?** Reading an encrypted chat database means extracting a key and
+> depending on a specific client build — brittle, unportable, and not something a statistics tool
+> should do. This repository owns the part *after* the data: pure stat functions, generators and UI.
+
+## Requirements
+
+- **Node.js 18+** (built-in `fetch`)
+- **Python 3** + `pypinyin` for pinyin-aware name ordering: `pip install pypinyin`
+- Any OS. On Windows there is also `启动.bat` (one-click entry; it registers the `wechatdash://`
+  protocol used by the in-dashboard refresh button).
+
+## Configuration
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `CHAT_PROVIDER_URL` | `http://127.0.0.1:5032` | Address of your local provider |
+| `PYTHON` | project `.venv` -> `venv` -> `python` | Interpreter used for HTML generation |
+| `PORT` | `5032` | Mock provider port only |
+
+## Project layout
+
+| Path | Purpose |
+|---|---|
+| `启动.bat` | Windows one-click entry: Node check -> launcher -> open dashboard |
+| `scripts/launcher.js` | Pipeline orchestration (probe provider -> stats -> HTML -> open -> keep refresh service alive) |
+| `scripts/http_stats.js` | Pulls from the provider and computes stats into `output/stats_data/*/stats.json` |
+| `scripts/gen_html.py` | Adapts the generators to the output directory and runs them in order |
+| `scripts/gen_dashboard_html.py`, `gen_race_html.py`, `gen_combined.py` | Dashboard / race / merge |
 | `scripts/refresh_server.js` | Local refresh service on `127.0.0.1:8765` |
-| `scripts/api_check.js` | Port health check |
-| `scripts/sns_timeline.js` | Moments reader |
-| `scripts/gen_html.py` and friends | Dashboard HTML generation |
-| `setup.bat` | Legacy helper: copies runtime binaries from Wxlens |
-
-## Legacy path (direct database access, requires key extraction)
-
-> ⚠️ **Deprecated.** Kept only as historical implementation. It decrypts the database key from
-> Wxlens' configuration via DPAPI and fails on some machines.
-
-```
-setup.bat -> copy electron.exe + WCDB DLLs from Wxlens
-     |
-scripts/init.js -> extract the database key from the Wxlens config (DPAPI)
-     |
-chat_stats.js -> read the WeChat database through WCDB -> stats.json
-     |
-gen_html.py -> dashboard.html + race.html -> combined.html
-```
-
-`setup.bat` searches for Wxlens in `D:\APP\Wxlens`, `%LOCALAPPDATA%\Programs\WxLens`,
-`C:\Program Files\WxLens`, and the Windows uninstall registry entries.
+| `scripts/api_check.js` | Provider health probe (exit 0 = online) |
+| `tools/mock-provider.js` | Synthetic provider for demos and tests |
+| `docs/provider-api.md` | Provider contract |
 
 ## Privacy and security
 
-- **Your data stays on your machine.** Every read and write is local; nothing is sent to any
-  external server.
+- **Your data stays local.** The only outbound interaction is a request to a provider on `127.0.0.1`.
 - **No telemetry** — no usage reporting, no crash reporting, no accounts.
-- **No key extraction by default** — the recommended HTTP mode reads through the local Wxlens API.
-  The legacy DPAPI path is never run automatically.
-- **No real chat data in the repository** — the sample dashboard and the contact name mapping have
-  been removed from version control and are git-ignored.
-- Only use this tool with WeChat accounts and devices **you are allowed to access**, and never
-  upload someone else's chat history.
+- **No key handling** — the repository contains no code that decrypts, extracts or copies keys, and
+  no third-party runtime binaries.
+- **No real data in git** — `.gitignore` covers runtime output and personal config; the bundled demo
+  data is synthetic.
+- Only use this with data **you are allowed to access**, and never upload someone else's chat history.
 
 ## Known limitations
 
-- Windows only (depends on Wxlens' local service and WCDB binaries).
-- Depends on the third-party **Wxlens** application; if it changes its data interface, readers may
-  break.
-- The legacy key-extraction path fails on some machines — use HTTP mode instead.
+- Dashboard generation needs Python + `pypinyin`; the Node part has no dependencies.
+- You must supply and run the provider; if its interface changes, the mapping needs updating.
+- Group chats (`@chatroom`) and system accounts are currently excluded from statistics.
 
 ## License
 
@@ -146,5 +123,6 @@ gen_html.py -> dashboard.html + race.html -> combined.html
 
 ## Contributing
 
-Issues and pull requests are welcome — please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
-**Never include real chat data, contact names or wxids in an issue or pull request.**
+Issues and pull requests are welcome — read [CONTRIBUTING.md](CONTRIBUTING.md) first, and see
+[SECURITY.md](SECURITY.md) for anything security related. **Never include real chat content,
+contact names or account ids.**

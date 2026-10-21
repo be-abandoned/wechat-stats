@@ -1,19 +1,23 @@
-// launcher.js — WeChat Stats 启动器（Node 版，替代复杂 bat 逻辑）
-// 职责: 检查 API -> 必要时自动拉起 MCP 服务 -> 拉统计 -> 生成 HTML -> 打开看板
+// launcher.js — WeChat Stats pipeline launcher
+// Flow: check provider -> fetch stats -> generate HTML -> open dashboard -> ensure refresh service
+//
+// The data source is a local HTTP provider described in docs/provider-api.md.
+// Set CHAT_PROVIDER_URL to point at it (default http://127.0.0.1:5032).
+'use strict';
+
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
 const PACK = path.resolve(__dirname, '..');
 const SCRIPTS = __dirname;
-const API = process.env.WX_API || 'http://127.0.0.1:5032';
+const PROVIDER = (process.env.CHAT_PROVIDER_URL || 'http://127.0.0.1:5032').replace(/\/+$/, '');
 const LOG = path.join(PACK, 'output', 'run.log');
 const NODE = process.execPath;
-const MCP_START = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'WxLens', 'resources', 'wxlens-mcp', 'start.cmd');
 const HTML = path.join(PACK, 'output', 'combined.html');
 
-// 自动检测 Python：优先项目内虚拟环境（.venv / venv），其次系统 python。
-// gen_html.py 需要 pypinyin；若放在 venv 中，用 PYTHON 环境变量或项目内 .venv 均可。
+// Python detection: project-local virtualenv first, then anything on PATH.
+// gen_html.py needs pypinyin; PYTHON can be set explicitly to a venv interpreter.
 function findPython() {
   if (process.env.PYTHON) return process.env.PYTHON;
   const candidates = [
@@ -25,7 +29,7 @@ function findPython() {
   ];
   for (const c of candidates) {
     if (c === 'python') return c;
-    try { if (fs.existsSync(c)) return c; } catch {}
+    try { if (fs.existsSync(c)) return c; } catch { /* ignore */ }
   }
   return 'python';
 }
@@ -37,14 +41,16 @@ function log(s) {
   try {
     fs.mkdirSync(path.dirname(LOG), { recursive: true });
     fs.appendFileSync(LOG, line + '\n');
-  } catch {}
+  } catch { /* logging must never break the run */ }
 }
 
-async function apiUp() {
+async function providerUp() {
   try {
-    const res = await fetch(API + '/api/sessions', { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(PROVIDER + '/api/sessions?limit=1', { signal: AbortSignal.timeout(3000) });
     return res.ok;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 function run(cmd, args) {
@@ -57,9 +63,9 @@ function run(cmd, args) {
   });
 }
 
-// 生成 HTML；若因缺 pypinyin 失败，自动 pip install 后重试一次
+// Generate the dashboard; if pypinyin is missing, install it once and retry.
 async function runGenHtml() {
-  let r = await run(PYTHON, [path.join(SCRIPTS, 'gen_html.py')]);
+  const r = await run(PYTHON, [path.join(SCRIPTS, 'gen_html.py')]);
   if (r.code === 0) return r;
   log('[WARN] HTML generation failed (exit=' + r.code + '), auto-installing pypinyin...');
   const inst = await run(PYTHON, ['-m', 'pip', 'install', '--user', 'pypinyin', '-q']);
@@ -69,55 +75,45 @@ async function runGenHtml() {
 }
 
 function openDetached(target) {
-  spawn('cmd', ['/c', 'start', '""', target], { detached: true, stdio: 'ignore' }).unref();
+  if (process.platform === 'win32') {
+    spawn('cmd', ['/c', 'start', '""', target], { detached: true, stdio: 'ignore' }).unref();
+  } else {
+    spawn('xdg-open', [target], { detached: true, stdio: 'ignore' }).unref();
+  }
 }
 
 async function main() {
   log('===== RUN =====');
+  log('provider: ' + PROVIDER);
 
-  // 1. API check
-  if (!(await apiUp())) {
-    log('API offline, auto-starting MCP service...');
-    if (fs.existsSync(MCP_START)) {
-      openDetached(MCP_START);
-    } else {
-      log('[ERROR] start.cmd not found: ' + MCP_START);
-      process.exit(1);
-    }
-    // 2. wait up to ~40s
-    let ok = false;
-    for (let i = 1; i <= 20; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      if (await apiUp()) { ok = true; break; }
-      if (i % 5 === 0) log(`  waiting for API... ${i * 2}s`);
-    }
-    if (!ok) {
-      log('[ERROR] Wxlens API did not start. Please open Wxlens once and make sure WeChat is running.');
-      process.exit(1);
-    }
+  if (!(await providerUp())) {
+    log('[ERROR] Local chat data provider is not reachable: ' + PROVIDER);
+    log('  Start your provider first, or point CHAT_PROVIDER_URL at it.');
+    log('  No provider yet? Try the mock provider:  node tools/mock-provider.js');
+    process.exit(1);
   }
-  log('[OK] Wxlens API online');
+  log('[OK] provider online');
 
-  // 3. fetch stats
   log('[1/2] Fetching chat stats...');
   let r = await run(NODE, [path.join(SCRIPTS, 'http_stats.js')]);
   if (r.out) log(r.out.trim());
-  if (r.code !== 0) { log('[ERROR] Stats generation failed (exit=' + r.code + ')'); process.exit(1); }
-  log('[OK] Stats done');
+  if (r.code !== 0) {
+    log('[ERROR] Stats generation failed (exit=' + r.code + ')');
+    process.exit(1);
+  }
+  log('[OK] stats done');
 
-  // 4. generate HTML (auto-installs pypinyin on first run if missing)
   log('[2/2] Generating HTML dashboard... (python=' + PYTHON + ')');
   r = await runGenHtml();
   if (r.out) log(r.out.trim());
   if (r.code !== 0) {
     log('[ERROR] HTML generation failed (exit=' + r.code + ')');
-    log('  gen_html.py needs the pypinyin package. Install it:  pip install pypinyin');
+    log('  gen_html.py needs the pypinyin package:  pip install pypinyin');
     log('  (or set PYTHON=/path/to/venv/python and run again)');
     process.exit(1);
   }
   log('[OK] HTML done');
 
-  // 5. open dashboard
   if (fs.existsSync(HTML)) {
     openDetached(HTML);
     log('[OK] Dashboard opened: ' + HTML);
@@ -125,16 +121,19 @@ async function main() {
     log('[WARN] combined.html not found: ' + HTML);
   }
 
-  // 6. ensure refresh server (8765) is running for the in-dashboard Refresh button
+  // Keep the refresh service (8765) alive so the in-dashboard Refresh button works.
   try {
-    const up = await fetch('http://127.0.0.1:8765/', { signal: AbortSignal.timeout(2000) }).then(r => r.ok).catch(() => false);
+    const up = await fetch('http://127.0.0.1:8765/', { signal: AbortSignal.timeout(2000) })
+      .then(res => res.ok).catch(() => false);
     if (!up) {
       spawn(NODE, [path.join(SCRIPTS, 'refresh_server.js')], { detached: true, stdio: 'ignore' }).unref();
       log('[OK] refresh server started (8765)');
     } else {
       log('[OK] refresh server already running (8765)');
     }
-  } catch { log('[WARN] refresh server check failed'); }
+  } catch {
+    log('[WARN] refresh server check failed');
+  }
 
   log('===== DONE =====');
   console.log('\nDone! Dashboard: ' + HTML);

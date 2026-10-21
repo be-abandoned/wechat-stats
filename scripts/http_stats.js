@@ -1,17 +1,18 @@
-// http_stats.js — 通过 Wxlens HTTP API 拉取微信数据生成统计（无需解密数据库）
-// 运行: node scripts/http_stats.js   （Node 18+，内置 fetch）
-// 输出: output/stats_data/<昵称>/stats.json （与 chat_stats.js 相同结构）
+// http_stats.js — pull conversations from a local chat data provider and compute per-chat stats.
+// The provider contract is documented in docs/provider-api.md.
+// Run: node scripts/http_stats.js      (Node 18+, built-in fetch)
+// Output: output/stats_data/<name>/stats.json
 
 const path = require('path');
 const fs = require('fs');
 
-const API = process.env.WX_API || 'http://127.0.0.1:5032';
+const API = (process.env.CHAT_PROVIDER_URL || 'http://127.0.0.1:5032').replace(/\/+$/, '');
 const PACK_DIR = path.resolve(__dirname, '..');
 const OUT_DIR = process.env.OUTPUT_DIR || path.join(PACK_DIR, 'output');
 const VAULT = path.join(OUT_DIR, 'stats_data');
 const BATCH = 3000;
 
-// ====== 工具（与 chat_stats.js 一致）======
+// ====== helpers ======
 const TZ = 8 * 3600 * 1000;
 function parseTime(sec) {
   const d = new Date(Number(sec) * 1000 + TZ);
@@ -57,7 +58,7 @@ async function api(pathname) {
   return j.data;
 }
 
-// ====== 统计（与 chat_stats.js 的 computeStats 一致，字段已映射）======
+// ====== statistics computed from provider messages ======
 function computeStats(messages, MY_WXID) {
   const st = {
     total: messages.length, mySend: 0, otherSend: 0,
@@ -159,7 +160,7 @@ function computeStats(messages, MY_WXID) {
   };
 }
 
-// ====== 字段映射：HTTP API -> chat_stats.js 内部字段 ======
+// ====== field mapping: provider payload -> internal message shape ======
 function mapMsg(m) {
   return {
     create_time: String(m.timestamp),
